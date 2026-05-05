@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { font-family: 'DM Sans', system-ui, sans-serif; }
+code, .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+body { @apply bg-surface-950 text-surface-100 antialiased; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { @apply bg-transparent; }
+::-webkit-scrollbar-thumb { @apply bg-surface-700 rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-surface-600; }
+
+.glass { @apply bg-surface-900/60 backdrop-blur-xl border border-surface-700/50; }
+.glass-hover:hover { @apply bg-surface-800/60 border-surface-600/50; }
+.stat-card { @apply glass rounded-xl p-5; }
+
+.btn { @apply px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed; }
+.btn-primary { @apply btn bg-brand-600 hover:bg-brand-500 text-white; }
+.btn-secondary { @apply btn bg-surface-800 hover:bg-surface-700 text-surface-200 border border-surface-700; }
+.btn-danger { @apply btn bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-600/30; }
+.btn-success { @apply btn bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-600/30; }
+.btn-ghost { @apply btn bg-transparent hover:bg-surface-800 text-surface-400 hover:text-surface-200; }
+
+.input { @apply w-full bg-surface-800/80 border border-surface-700 rounded-lg px-3.5 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500/30 transition; }
+.textarea { @apply input min-h-[100px] resize-y font-mono text-xs; }
+.label { @apply block text-sm font-medium text-surface-400 mb-1.5; }
+
+.badge { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium; }
+.badge-green  { @apply badge bg-emerald-500/15 text-emerald-400; }
+.badge-red    { @apply badge bg-red-500/15 text-red-400; }
+.badge-yellow { @apply badge bg-amber-500/15 text-amber-400; }
+.badge-blue   { @apply badge bg-brand-500/15 text-brand-400; }
+.badge-gray   { @apply badge bg-surface-500/15 text-surface-400; }
+.badge-purple { @apply badge bg-purple-500/15 text-purple-400; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }

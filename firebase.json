@@ -21,11 +21,15 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
-    "public": "dashboard",
+    "public": "dashboard/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "predeploy": [
+      "npm --prefix dashboard install",
+      "npm --prefix dashboard run build"
     ],
     "rewrites": [
       { "source": "/api/seed",        "function": { "functionId": "seed",        "region": "us-central1" } },
@@ -37,7 +41,8 @@
       { "source": "/api/pause",       "function": { "functionId": "pause",       "region": "us-central1" } },
       { "source": "/api/resume",      "function": { "functionId": "resume",      "region": "us-central1" } },
       { "source": "/api/stats",       "function": { "functionId": "stats",       "region": "us-central1" } },
-      { "source": "/track/**",        "function": { "functionId": "track",       "region": "us-central1" } }
+      { "source": "/track/**",        "function": { "functionId": "track",       "region": "us-central1" } },
+      { "source": "**",               "destination": "/index.html" }
     ]
   }
 }
