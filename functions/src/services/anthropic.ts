@@ -99,9 +99,10 @@ export async function generateOutreach(prospect: ProspectDoc, event: EventConfig
     messages: [{ role: "user", content: userMsg }],
   });
 
-  const text = res.content
-    .filter((c): c is Anthropic.TextBlock => c.type === "text")
-    .map((c) => c.text).join("");
+  const text = (res.content as any[])
+    .filter((c: any) => c?.type === "text")
+    .map((c: any) => c.text as string)
+    .join("");
 
   // Tolerate fenced JSON just in case the model slips.
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -147,9 +148,11 @@ export async function scoreIcpFit(
     messages: [{ role: "user", content: userMsg }],
   });
 
-  const text = res.content
-    .filter((c): c is Anthropic.TextBlock => c.type === "text")
-    .map((c) => c.text).join("").trim();
+  const text = (res.content as any[])
+    .filter((c: any) => c?.type === "text")
+    .map((c: any) => c.text as string)
+    .join("")
+    .trim();
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   try {
     const obj = JSON.parse(cleaned);
