@@ -67,6 +67,7 @@ export async function personalizeBatch(params: {
   const settings = (settingsSnap.data() as SettingsDoc) || {};
   const floor = params.qualityFloorOverride ?? settings.autoSendQualityFloor ?? 7;
   const batchSize = params.batchSize ?? 25;
+  const excludeCompanies = settings.icp?.excludeCompanies || [];
 
   const sourced = await db().collection("prospects")
     .where("status", "==", "sourced")
@@ -79,6 +80,22 @@ export async function personalizeBatch(params: {
     const prospect = { id: doc.id, ...(doc.data() as Omit<ProspectDoc, "id">) };
     out.processed++;
     try {
+      // 0. Final competitor guard (belt + suspenders — the sourcing feeds
+      //    already filter, but companies on profiles can change between
+      //    source-time and personalize-time, and prospects manually added
+      //    via CSV may bypass the source-time check).
+      const haystack = [prospect.company, prospect.headline, prospect.jobTitle]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (haystack && excludeCompanies.some((e) => haystack.includes(e.toLowerCase()))) {
+        await doc.ref.update({
+          status: "rejected",
+          qualityReasoning: `Excluded: works at competitor (${prospect.company || "see headline"})`,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        out.rejected++;
+        continue;
+      }
+
       // 1. Refresh connection degree if missing.
       let degree = prospect.connectionDegree;
       if (!degree) {

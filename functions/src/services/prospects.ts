@@ -142,10 +142,32 @@ function passesTitlePreFilter(raw: RawProfile, jobTitles: string[]): boolean {
   return jobTitles.some((q) => t.includes(q.toLowerCase()));
 }
 
+/**
+ * Hard competitor exclusion. Drops any prospect whose company OR
+ * headline contains a name from excludeCompanies (case-insensitive
+ * substring). Applied to every feed — including company_followers,
+ * because we pull followers OF competitors precisely to find their
+ * customers, not their employees.
+ *
+ * If company is unknown but headline mentions the competitor (e.g.
+ * "Senior AppSec Engineer at Snyk" in a free-text headline), still
+ * exclude.
+ */
+function isExcludedCompany(raw: RawProfile, excludeCompanies: string[] | undefined): boolean {
+  if (!excludeCompanies || excludeCompanies.length === 0) return false;
+  const r = unwrap(raw);
+  const haystack = [
+    r.company, r.companyName, r.currentCompany, r.headline, r.title, r.occupation,
+  ].filter(Boolean).join(" ").toLowerCase();
+  if (!haystack) return false;
+  return excludeCompanies.some((e) => haystack.includes(e.toLowerCase()));
+}
+
 export interface SourceResult {
   totalFetched: number;
   inserted: number;
   duplicates: number;
+  excludedCompetitors: number;
   errors: string[];
   byFeed: Record<"search" | "company_followers" | "group_members" | "post_engagers", number>;
 }
@@ -160,9 +182,10 @@ export async function runSourcing(params: {
   pageSize?: number;          // results per API call (default 50/100 depending on feed)
 }): Promise<SourceResult> {
   const result: SourceResult = {
-    totalFetched: 0, inserted: 0, duplicates: 0, errors: [],
+    totalFetched: 0, inserted: 0, duplicates: 0, excludedCompetitors: 0, errors: [],
     byFeed: { search: 0, company_followers: 0, group_members: 0, post_engagers: 0 },
   };
+  const exclude = params.icp.excludeCompanies || [];
   const cap = params.perFeedCap ?? 200;
   const searchPageSize = params.pageSize ?? 50;
   const followerPageSize = 100;
@@ -187,6 +210,7 @@ export async function runSourcing(params: {
     result.totalFetched += batch.length;
 
     for (const raw of batch as RawProfile[]) {
+      if (isExcludedCompany(raw, exclude)) { result.excludedCompetitors++; continue; }
       const p = rawToProspect(raw, { source: "search" });
       if (!p) continue;
       const ins = await upsertProspect(p);
@@ -211,6 +235,7 @@ export async function runSourcing(params: {
       result.totalFetched += batch.length;
 
       for (const raw of batch as RawProfile[]) {
+        if (isExcludedCompany(raw, exclude)) { result.excludedCompetitors++; continue; }
         if (!passesTitlePreFilter(raw, params.icp.jobTitles)) continue;
         const p = rawToProspect(raw, {
           source: "company_followers", followerOfCompanyId: companyId,
@@ -241,6 +266,7 @@ export async function runSourcing(params: {
       result.totalFetched += batch.length;
 
       for (const raw of batch as RawProfile[]) {
+        if (isExcludedCompany(raw, exclude)) { result.excludedCompetitors++; continue; }
         if (!passesTitlePreFilter(raw, params.icp.jobTitles)) continue;
         const p = rawToProspect(raw, {
           source: "group_members", sourceGroupRef: groupRef,
@@ -267,6 +293,7 @@ export async function runSourcing(params: {
       result.totalFetched += batch.length;
 
       for (const raw of batch as RawProfile[]) {
+        if (isExcludedCompany(raw, exclude)) { result.excludedCompetitors++; continue; }
         if (!passesTitlePreFilter(raw, params.icp.jobTitles)) continue;
         const p = rawToProspect(raw, {
           source: "post_engagers", sourcePostUrl: postUrl, engagementType: "reaction",
@@ -288,6 +315,7 @@ export async function runSourcing(params: {
       const batch = c.data || [];
       result.totalFetched += batch.length;
       for (const raw of batch as RawProfile[]) {
+        if (isExcludedCompany(raw, exclude)) { result.excludedCompetitors++; continue; }
         if (!passesTitlePreFilter(raw, params.icp.jobTitles)) continue;
         const p = rawToProspect(raw, {
           source: "post_engagers", sourcePostUrl: postUrl, engagementType: "comment",
@@ -301,7 +329,7 @@ export async function runSourcing(params: {
   }
 
   await log("sourcing_complete",
-    `Sourced ${result.totalFetched} profiles → inserted ${result.inserted} new (${result.duplicates} duplicates, ${result.errors.length} errors)`,
+    `Sourced ${result.totalFetched} → inserted ${result.inserted} (${result.duplicates} dupes, ${result.excludedCompetitors} competitors excluded, ${result.errors.length} errors)`,
     { result });
 
   return result;

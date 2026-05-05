@@ -100,6 +100,18 @@ export const seed = onRequest(async (req, res) => {
         // Company URN/slug — adjust after deploy. Common SBOM/AppSec adjacents:
         "synopsys", "snyk", "veracode", "anchore", "blackducksoftware", "apona-security",
       ],
+      excludeCompanies: [
+        // Hard exclusion — prospects who WORK at any of these are dropped
+        // from sourcing AND from personalize. Case-insensitive substring
+        // match against company name, headline, and current title.
+        // Mirrors followerOf because we pull followers OF competitors but
+        // never message competitors' employees. Apona is the event host
+        // (their employees already know about it).
+        "Apona Security",
+        "Synopsys", "Snyk", "Veracode", "Anchore", "Black Duck", "Blackduck",
+        "Sonatype", "Mend", "WhiteSource", "Checkmarx", "GitHub Advanced Security",
+        "Endor Labs", "Chainguard", "Phylum", "Socket", "ActiveState",
+      ],
       linkedinGroups: [
         // Paste full group URLs (preferred) or numeric IDs after deploy.
         // Example: "https://www.linkedin.com/groups/3961304" (Application Security Practitioners)
