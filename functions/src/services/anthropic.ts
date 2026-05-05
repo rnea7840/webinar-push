@@ -2,23 +2,69 @@
 // Anthropic-powered personalization. One job: generate webinar
 // outreach copy (connect note ≤300 chars, DM body, InMail body,
 // and optional email subject/body) tuned to each prospect.
+//
+// Uses direct fetch to the Anthropic Messages API instead of the
+// @anthropic-ai/sdk package — removes the _shims resolution bug
+// that surfaces on some Node + Windows + Cloud Functions combos.
 
-import Anthropic from "@anthropic-ai/sdk";
 import * as admin from "firebase-admin";
 import type { EventConfig, ProspectDoc } from "../types";
 
 const db = () => admin.firestore();
 const DEFAULT_MODEL = "claude-sonnet-4-6";
+const API_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
 
-async function getClient(): Promise<{ client: Anthropic; model: string }> {
+interface AnthropicMessageResponse {
+  id: string;
+  type: "message";
+  role: "assistant";
+  content: Array<{ type: string; text?: string }>;
+  model: string;
+  stop_reason: string;
+  stop_sequence: string | null;
+  usage: { input_tokens: number; output_tokens: number };
+}
+
+async function getAuth(): Promise<{ apiKey: string; model: string }> {
   const snap = await db().collection("settings").doc("config").get();
   const data = snap.data() || {};
   const apiKey = data.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("Anthropic API key not configured");
-  return {
-    client: new Anthropic({ apiKey }),
-    model: data.anthropicModel || DEFAULT_MODEL,
-  };
+  return { apiKey, model: data.anthropicModel || DEFAULT_MODEL };
+}
+
+async function callMessages(params: {
+  model: string;
+  apiKey: string;
+  maxTokens: number;
+  system: string;
+  userMessage: string;
+}): Promise<string> {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key": params.apiKey,
+      "anthropic-version": ANTHROPIC_VERSION,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: params.model,
+      max_tokens: params.maxTokens,
+      system: params.system,
+      messages: [{ role: "user", content: params.userMessage }],
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Anthropic ${res.status}: ${txt.slice(0, 500)}`);
+  }
+  const data = (await res.json()) as AnthropicMessageResponse;
+  return (data.content || [])
+    .filter((c) => c?.type === "text" && typeof c.text === "string")
+    .map((c) => c.text as string)
+    .join("");
 }
 
 function eventBlurb(event: EventConfig): string {
@@ -80,7 +126,7 @@ Output STRICT JSON only, no markdown fence:
 {"connectNote":"...","dmBody":"...","inmailBody":"...","emailSubject":"...","emailBody":"...","qualityScore":N,"qualityReasoning":"..."}`;
 
 export async function generateOutreach(prospect: ProspectDoc, event: EventConfig): Promise<GeneratedCopy> {
-  const { client, model } = await getClient();
+  const { apiKey, model } = await getAuth();
 
   const userMsg = [
     "PROSPECT:",
@@ -92,17 +138,9 @@ export async function generateOutreach(prospect: ProspectDoc, event: EventConfig
     "Generate outreach. Remember: connectNote ≤280 chars. Output JSON only.",
   ].join("\n");
 
-  const res = await client.messages.create({
-    model,
-    max_tokens: 1500,
-    system: SYSTEM,
-    messages: [{ role: "user", content: userMsg }],
+  const text = await callMessages({
+    apiKey, model, maxTokens: 1500, system: SYSTEM, userMessage: userMsg,
   });
-
-  const text = (res.content as any[])
-    .filter((c: any) => c?.type === "text")
-    .map((c: any) => c.text as string)
-    .join("");
 
   // Tolerate fenced JSON just in case the model slips.
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -133,7 +171,7 @@ export async function scoreIcpFit(
   event: EventConfig,
   icpDescription: string,
 ): Promise<{ score: number; reason: string }> {
-  const { client, model } = await getClient();
+  const { apiKey, model } = await getAuth();
   const sys = `You are a cold-outbound qualifier. Given an ICP description, an event, and a prospect, score their fit 0-10. Output strict JSON: {"score":N,"reason":"..."}. Be honest — score 4 or below if the prospect is clearly not in ICP.`;
   const userMsg = [
     "ICP:", icpDescription, "",
@@ -141,18 +179,9 @@ export async function scoreIcpFit(
     "PROSPECT:", prospectBlurb(prospect),
   ].join("\n");
 
-  const res = await client.messages.create({
-    model,
-    max_tokens: 200,
-    system: sys,
-    messages: [{ role: "user", content: userMsg }],
-  });
-
-  const text = (res.content as any[])
-    .filter((c: any) => c?.type === "text")
-    .map((c: any) => c.text as string)
-    .join("")
-    .trim();
+  const text = (await callMessages({
+    apiKey, model, maxTokens: 200, system: sys, userMessage: userMsg,
+  })).trim();
   const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   try {
     const obj = JSON.parse(cleaned);
