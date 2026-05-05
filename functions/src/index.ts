@@ -97,8 +97,18 @@ export const seed = onRequest(async (req, res) => {
       ],
       industries: ["Computer Software", "Information Technology", "Defense", "Government Administration", "Financial Services"],
       followerOf: [
-        // Adjust these company URN/IDs after deploy. Common SBOM/AppSec adjacents:
+        // Company URN/slug — adjust after deploy. Common SBOM/AppSec adjacents:
         "synopsys", "snyk", "veracode", "anchore", "blackducksoftware", "apona-security",
+      ],
+      linkedinGroups: [
+        // Paste full group URLs (preferred) or numeric IDs after deploy.
+        // Example: "https://www.linkedin.com/groups/3961304" (Application Security Practitioners)
+        // Add OWASP, DevSecOps, SBOM, federal-cyber groups here.
+      ],
+      targetPosts: [
+        // Paste full LinkedIn post URLs of relevant content after deploy.
+        // E.g. Apona / Carahsoft event-announcement posts, viral SBOM-related
+        // posts from analysts, vendor announcements about CISA SBOM mandates.
       ],
       connectionDegree: ["1st", "2nd", "3rd+"],
       premiumOnly: false,

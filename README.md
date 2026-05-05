@@ -139,19 +139,47 @@ curl -X POST "$BASE/testKeys" -H "X-Admin-Key: $ADMIN_KEY"
 
 ### 8. Tune ICP
 
-Edit `settings/config.icp` directly in Firestore. Fields:
+Edit `settings/config.icp` directly in Firestore. Sourcing uses **four feeds in parallel**, each gated by ICP keywords:
 
 ```
-jobTitles:     ["AppSec Engineer", "DevSecOps", ...]
-industries:    ["Computer Software", "Defense", ...]
-companies:     ["Specific target accounts"]
-followerOf:    ["snyk", "veracode", "anchore", "blackducksoftware", "apona-security"]
-locations:     ["United States"]
+jobTitles:        ["AppSec Engineer", "DevSecOps", "Product Security", ...]
+industries:       ["Computer Software", "Defense", ...]
+companies:        ["Specific target accounts"]
+locations:        ["United States"]
 connectionDegree: ["1st", "2nd", "3rd+"]
-premiumOnly:   false
+premiumOnly:      false
+
+# FEED 2: company followers
+followerOf:       ["snyk", "veracode", "anchore", "blackducksoftware", "apona-security"]
+
+# FEED 3: LinkedIn groups (paste full URL preferred, or numeric ID)
+linkedinGroups:   [
+  "https://www.linkedin.com/groups/3961304/",   # Application Security Practitioners
+  "https://www.linkedin.com/groups/8284953/",   # DevSecOps
+  # add OWASP, federal-cyber, SBOM groups...
+]
+
+# FEED 4: post engagers (commenters + reactors on a specific post)
+targetPosts:      [
+  "https://www.linkedin.com/posts/<author>_<slug>-activity-1234...",
+  # paste URL of: Apona / Carahsoft event-announcement post,
+  #               viral SBOM posts from CISA / analysts,
+  #               vendor announcements about CISA SBOM mandates
+]
 ```
 
-`followerOf` accepts LinkedIn company URN/slug or numeric ID. Confirm each one resolves before sourcing.
+**How each feed works:**
+
+| Feed | Source | API call | Pre-filter |
+|---|---|---|---|
+| 1 | Sales-Nav-style ICP search | `searchPeopleV2` paginated 50/call | Already ICP-filtered server-side |
+| 2 | Followers of a Company Page | `/organizations/{id}/followers` | Title contains an ICP keyword |
+| 3 | Members of a LinkedIn Group | `/groups/members` or `/groups/members-by-url` | Title contains an ICP keyword |
+| 4 | Reactors + commenters on a post | `/posts/reactions` + `/posts/comments` | Title contains an ICP keyword |
+
+Prospects without a visible title are kept; Anthropic qualifies them in the personalize step. Dedupe is by `profileUrl` across all feeds.
+
+`followerOf`, `linkedinGroups`, and `targetPosts` accept either a full URL or the LinkedIn ID. URL is more reliable.
 
 ### 9. Run the push
 

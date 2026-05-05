@@ -275,6 +275,64 @@ export async function getCompanyFollowers(params: {
   };
 }
 
+// ── 6b. Group members ─────────────────────────────────────────
+// Pulls members of a LinkedIn group by ID or URL. Group members
+// self-selected interest in a topic, so they convert better than
+// cold search hits.
+export async function getGroupMembers(params: {
+  groupId?: string;
+  groupUrl?: string;
+  start?: number;
+  count?: number;
+  accountId?: string;
+}): Promise<{ success: boolean; data?: any[]; total?: number; error?: string }> {
+  if (!params.groupId && !params.groupUrl) {
+    return { success: false, error: "groupId or groupUrl required" };
+  }
+  const path = params.groupUrl ? "/groups/members-by-url" : "/groups/members";
+  const body: Record<string, unknown> = params.groupUrl
+    ? { url: params.groupUrl }
+    : { groupId: params.groupId };
+  body.start = params.start || 0;
+  body.count = params.count || 100;
+  const r = await csCall<any>("POST", path, body, params.accountId);
+  if (!r.success) return { success: false, error: r.error };
+  const data = r.data?.members || r.data?.results || r.data?.elements || r.data || [];
+  const total = r.data?.total || r.data?.paging?.total || data.length;
+  return { success: true, data, total };
+}
+
+// ── 6c. Post engagers (reactors + commenters) ────────────────
+// People who already engaged with a relevant post — high-intent
+// signal. Use for sourcing prospects from an Apona/Carahsoft
+// announcement or any AppSec/SBOM post that draws ICP audiences.
+export async function getPostReactions(params: {
+  postUrl: string;
+  start?: number;
+  count?: number;
+  accountId?: string;
+}): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  const r = await csCall<any>("POST", "/posts/reactions", {
+    url: params.postUrl,
+    start: params.start || 0,
+    count: params.count || 100,
+  }, params.accountId);
+  if (!r.success) return { success: false, error: r.error };
+  return { success: true, data: r.data?.reactions || r.data?.results || r.data || [] };
+}
+
+export async function getPostComments(params: {
+  postUrl: string;
+  accountId?: string;
+}): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  const r = await csCall<any>("POST", "/posts/comments", {
+    url: params.postUrl,
+    allComments: true,
+  }, params.accountId);
+  if (!r.success) return { success: false, error: r.error };
+  return { success: true, data: r.data?.comments || r.data?.results || r.data || [] };
+}
+
 // ── 7. Follow (light warm-up) ─────────────────────────────────
 export async function followProfile(params: {
   profileUrl: string;

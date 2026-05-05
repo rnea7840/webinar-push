@@ -38,6 +38,8 @@ export interface IcpFilter {
   excludeCompanies?: string[];
   locations?: string[];
   followerOf?: string[];          // company URLs/IDs to pull followers from
+  linkedinGroups?: string[];      // group URLs (preferred) or numeric IDs to pull members from
+  targetPosts?: string[];         // LinkedIn post URLs — pulls commenters + reactors
   connectionDegree?: ("1st" | "2nd" | "3rd+")[];
   premiumOnly?: boolean;
   minQualityScore?: number;       // 0-10, default 7
@@ -100,8 +102,11 @@ export interface ProspectDoc {
   emailSource?: "apollo" | "icypeas" | "manual" | "linkedin";
 
   // Targeting metadata
-  source: "search" | "company_followers" | "csv";
+  source: "search" | "company_followers" | "group_members" | "post_engagers" | "csv";
   followerOfCompanyId?: string;
+  sourceGroupRef?: string;         // group URL/ID this prospect came from
+  sourcePostUrl?: string;          // post URL this prospect engaged with
+  engagementType?: "reaction" | "comment";
   connectionDegree?: "1st" | "2nd" | "3rd+";
   isPremium?: boolean;
 
