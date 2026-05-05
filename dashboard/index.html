@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webinar Push — Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased">
+
+  <!-- Auth screen -->
+  <div id="auth-screen" class="hidden min-h-screen flex items-center justify-center p-8">
+    <div class="max-w-sm w-full bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-2xl text-center">
+      <h1 class="text-2xl font-bold mb-2">Webinar Push</h1>
+      <p class="text-slate-400 text-sm mb-6">Admin console for the SBOM event push.</p>
+      <button id="signin-btn" class="w-full bg-blue-600 hover:bg-blue-500 transition text-white font-medium px-6 py-3 rounded-lg">
+        Sign in with Google
+      </button>
+      <p id="auth-error" class="text-red-400 text-xs mt-4 hidden"></p>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app" class="hidden min-h-screen">
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <h1 class="text-lg font-semibold">Webinar Push</h1>
+          <span id="event-title" class="text-xs text-slate-400"></span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span id="mode-badge" class="text-xs font-medium px-2 py-1 rounded">SANDBOX</span>
+          <span id="paused-badge" class="text-xs font-medium px-2 py-1 rounded bg-red-900 text-red-200 hidden">PAUSED</span>
+          <span id="user-email" class="text-xs text-slate-400"></span>
+          <button id="signout-btn" class="text-xs text-slate-400 hover:text-slate-200">Sign out</button>
+        </div>
+      </div>
+      <nav class="max-w-7xl mx-auto px-6 flex gap-1 border-t border-slate-800/50">
+        <button data-tab="settings" class="tab-btn px-4 py-3 text-sm font-medium">Settings</button>
+        <button data-tab="icp" class="tab-btn px-4 py-3 text-sm font-medium">ICP &amp; Sources</button>
+        <button data-tab="run" class="tab-btn px-4 py-3 text-sm font-medium">Run</button>
+        <button data-tab="stats" class="tab-btn px-4 py-3 text-sm font-medium">Stats</button>
+      </nav>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6">
+
+      <!-- ─── Settings tab ─── -->
+      <section data-panel="settings" class="space-y-6">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <h2 class="text-base font-semibold mb-4">API Keys</h2>
+          <div class="grid gap-4">
+            <label class="block">
+              <span class="text-xs text-slate-400">Admin Key <span class="text-slate-500">(used to authenticate API calls; auto-generated if empty)</span></span>
+              <div class="flex gap-2 mt-1">
+                <input id="adminKey" type="password" class="flex-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" autocomplete="off" />
+                <button id="adminKey-show" type="button" class="text-xs px-3 py-2 border border-slate-800 rounded hover:bg-slate-800">Show</button>
+                <button id="adminKey-gen" type="button" class="text-xs px-3 py-2 border border-slate-800 rounded hover:bg-slate-800">Generate</button>
+              </div>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Anthropic API Key</span>
+              <input id="anthropicApiKey" type="password" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" autocomplete="off" placeholder="sk-ant-..." />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Anthropic Model</span>
+              <input id="anthropicModel" type="text" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" placeholder="claude-sonnet-4-6" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">ConnectSafely API Key</span>
+              <input id="connectSafelyApiKey" type="password" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" autocomplete="off" />
+            </label>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold">LinkedIn Accounts</h2>
+            <button id="add-account" type="button" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded">+ Add</button>
+          </div>
+          <div id="accounts-list" class="space-y-2"></div>
+          <p class="text-xs text-slate-500 mt-3">Each account is one ConnectSafely-linked LinkedIn seat. Multiple accounts → load distributes across them. <code>connectSafelyAccountId</code> is optional; leave blank for single-seat use.</p>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <h2 class="text-base font-semibold mb-4">Send Limits &amp; Mode</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="block">
+              <span class="text-xs text-slate-400">Mode</span>
+              <select id="mode" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm">
+                <option value="sandbox">sandbox (records, doesn't send)</option>
+                <option value="live">live (actually sends)</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Quality floor (0–10)</span>
+              <input id="autoSendQualityFloor" type="number" min="0" max="10" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">DM daily limit / account</span>
+              <input id="linkedinDailyLimit" type="number" min="1" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">InMail daily limit / account</span>
+              <input id="linkedinInmailDailyLimitPerAccount" type="number" min="1" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button id="save-settings" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded">Save settings</button>
+          <button id="test-keys" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded">Test keys</button>
+          <button id="seed-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded">Run /seed (first-time only)</button>
+          <button id="pause-btn" class="bg-red-700 hover:bg-red-600 text-white px-5 py-2 rounded ml-auto">Pause everything</button>
+          <button id="resume-btn" class="bg-amber-600 hover:bg-amber-500 text-white px-5 py-2 rounded">Resume</button>
+        </div>
+        <pre id="settings-output" class="text-xs bg-slate-900 border border-slate-800 rounded p-4 overflow-auto whitespace-pre-wrap min-h-[2.5rem]"></pre>
+      </section>
+
+      <!-- ─── ICP tab ─── -->
+      <section data-panel="icp" class="space-y-6 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-4">
+          <h2 class="text-base font-semibold">Event metadata</h2>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="block col-span-2">
+              <span class="text-xs text-slate-400">Title</span>
+              <input id="event-title-input" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Host</span>
+              <input id="event-host" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Channel partner</span>
+              <input id="event-channel" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <label class="block col-span-2">
+              <span class="text-xs text-slate-400">LinkedIn event URL</span>
+              <input id="event-linkedinUrl" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" />
+            </label>
+            <label class="block col-span-2">
+              <span class="text-xs text-slate-400">Registration URL (carahevents)</span>
+              <input id="event-registrationUrl" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Starts at (ISO 8601, UTC)</span>
+              <input id="event-startsAt" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" placeholder="2026-05-12T14:00:00Z" />
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Duration (minutes)</span>
+              <input id="event-duration" type="number" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <label class="block col-span-2">
+              <span class="text-xs text-slate-400">Description blurb</span>
+              <textarea id="event-description" rows="2" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm"></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-4">
+          <h2 class="text-base font-semibold">ICP filter</h2>
+          <p class="text-xs text-slate-500">All four sourcing feeds use these filters. Enter one item per line.</p>
+          <div class="grid grid-cols-2 gap-4">
+            <label class="block col-span-2">
+              <span class="text-xs text-slate-400">Job titles (one per line)</span>
+              <textarea id="icp-jobTitles" rows="6" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono"></textarea>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Industries</span>
+              <textarea id="icp-industries" rows="4" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono"></textarea>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Locations</span>
+              <textarea id="icp-locations" rows="4" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono"></textarea>
+            </label>
+            <label class="block col-span-2">
+              <span class="text-xs text-slate-400">Exclude companies <span class="text-red-400">(competitors — never message employees of these)</span></span>
+              <textarea id="icp-excludeCompanies" rows="4" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono"></textarea>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Connection degrees</span>
+              <div id="icp-degrees" class="mt-2 flex flex-wrap gap-2 text-sm">
+                <label class="flex items-center gap-1"><input type="checkbox" value="1st" /> 1st</label>
+                <label class="flex items-center gap-1"><input type="checkbox" value="2nd" /> 2nd</label>
+                <label class="flex items-center gap-1"><input type="checkbox" value="3rd+" /> 3rd+</label>
+              </div>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Premium only?</span>
+              <select id="icp-premiumOnly" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm">
+                <option value="false">No</option>
+                <option value="true">Yes (Sales Nav users only)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-4">
+          <h2 class="text-base font-semibold">Sourcing feeds</h2>
+          <div class="grid gap-4">
+            <label class="block">
+              <span class="text-xs text-slate-400">Company pages — pull their followers (one slug or URL per line)</span>
+              <textarea id="icp-followerOf" rows="5" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" placeholder="snyk&#10;veracode&#10;anchore"></textarea>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">LinkedIn groups — pull members (group URLs preferred)</span>
+              <textarea id="icp-linkedinGroups" rows="5" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" placeholder="https://www.linkedin.com/groups/3961304/&#10;https://www.linkedin.com/groups/8284953/"></textarea>
+            </label>
+            <label class="block">
+              <span class="text-xs text-slate-400">Target posts — pull commenters + reactors (post URLs)</span>
+              <textarea id="icp-targetPosts" rows="5" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm font-mono" placeholder="https://www.linkedin.com/posts/..."></textarea>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button id="save-icp" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-5 py-2 rounded">Save ICP</button>
+        </div>
+        <pre id="icp-output" class="text-xs bg-slate-900 border border-slate-800 rounded p-4 overflow-auto whitespace-pre-wrap min-h-[2.5rem]"></pre>
+      </section>
+
+      <!-- ─── Run tab ─── -->
+      <section data-panel="run" class="space-y-6 hidden">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-3">
+            <h3 class="font-semibold">1. Source prospects</h3>
+            <p class="text-xs text-slate-400">Runs all four feeds (search + followers + groups + posts). Caps each feed at the size below.</p>
+            <label class="block">
+              <span class="text-xs text-slate-400">Per-feed cap</span>
+              <input id="source-cap" type="number" value="200" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <button data-action="source" class="action-btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Run /source</button>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-3">
+            <h3 class="font-semibold">2. Personalize (Anthropic)</h3>
+            <p class="text-xs text-slate-400">Generates connect note + DM + InMail + email per prospect, scores 0–10, routes channel.</p>
+            <label class="block">
+              <span class="text-xs text-slate-400">Batch size</span>
+              <input id="personalize-size" type="number" value="50" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <button data-action="personalize" class="action-btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Run /personalize</button>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-3">
+            <h3 class="font-semibold">3. Queue drafts</h3>
+            <p class="text-xs text-slate-400">Promotes drafted prospects to "queued" so the sender picks them up. No-op in sandbox mode.</p>
+            <button data-action="queue" class="action-btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm">Run /queue</button>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-6 space-y-3">
+            <h3 class="font-semibold">4. Send now</h3>
+            <p class="text-xs text-slate-400">Drains the queue. Distributes across accounts, respects per-channel caps. Live mode only.</p>
+            <label class="block">
+              <span class="text-xs text-slate-400">Batch size</span>
+              <input id="sendnow-size" type="number" value="30" class="w-full mt-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm" />
+            </label>
+            <button data-action="sendNow" class="action-btn bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-sm">Run /sendNow</button>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 text-xs text-slate-400">
+          The <code>tick</code> cron runs every 30 min automatically: personalize → queue → send → due follow-ups → poll inbox replies. Manual buttons above are for first-run / on-demand bursts.
+        </div>
+
+        <pre id="run-output" class="text-xs bg-slate-900 border border-slate-800 rounded p-4 overflow-auto whitespace-pre-wrap min-h-[10rem]"></pre>
+      </section>
+
+      <!-- ─── Stats tab ─── -->
+      <section data-panel="stats" class="space-y-6 hidden">
+        <div class="grid grid-cols-4 gap-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+            <div class="text-xs text-slate-400">DM remaining today</div>
+            <div id="cap-dm" class="text-2xl font-semibold">—</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+            <div class="text-xs text-slate-400">Connect remaining today</div>
+            <div id="cap-connect" class="text-2xl font-semibold">—</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+            <div class="text-xs text-slate-400">InMail remaining today</div>
+            <div id="cap-inmail" class="text-2xl font-semibold">—</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+            <div class="text-xs text-slate-400">Total touches today</div>
+            <div id="cap-total" class="text-2xl font-semibold">—</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold">Prospects by status</h2>
+            <button id="refresh-stats" class="text-xs px-3 py-1.5 border border-slate-800 rounded hover:bg-slate-800">Refresh</button>
+          </div>
+          <div id="status-grid" class="grid grid-cols-4 gap-2 text-sm"></div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-6">
+          <h2 class="text-base font-semibold mb-4">Recent activity</h2>
+          <div id="activity-log" class="space-y-1 text-xs font-mono max-h-[24rem] overflow-auto"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

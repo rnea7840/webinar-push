@@ -48,6 +48,20 @@ Every send distributes across all enabled `linkedinAccounts` based on per-accoun
 
 Reply detection runs on every tick: any inbound message from a known prospect flips them to `replied` and removes them from the follow-up pool. Tracking-link clicks flip to `registered`.
 
+## Admin dashboard
+
+Open `https://webinarpush.web.app` after deploy. Sign in with Google. The dashboard has four tabs:
+
+- **Settings** — API keys (admin / Anthropic / ConnectSafely), LinkedIn accounts, mode toggle (sandbox/live), send limits, pause/resume, test-keys, run-seed.
+- **ICP & Sources** — event metadata, ICP filters (titles, industries, locations, exclude competitors, connection degrees), and the four sourcing feeds: company-page followers, LinkedIn groups, target posts.
+- **Run** — buttons to fire `/source`, `/personalize`, `/queue`, `/sendNow` on demand. The cron runs the same pipeline every 30 min automatically.
+- **Stats** — live counts by status, daily remaining capacity per channel, last 40 activity-log entries.
+
+Firestore rules require an authenticated user. Lock down sign-in via:
+- Firebase Console → Authentication → Sign-in method → enable **Google** provider
+- (Optional) Authentication → Settings → restrict authorized domains
+- (Optional) only invite specific Google emails — anyone outside that list will be blocked at sign-in
+
 ## Setup (separate Firebase project)
 
 ### 1. Prereqs
