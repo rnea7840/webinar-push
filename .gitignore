@@ -1,0 +1,14 @@
+node_modules/
+lib/
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+.vscode/
+.idea/

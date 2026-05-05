@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All access goes through Cloud Functions with admin SDK.
+    // Lock down direct client access; if a dashboard is added later,
+    // gate reads on request.auth and write deny everything except via admin.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
