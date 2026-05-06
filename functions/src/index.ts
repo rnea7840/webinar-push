@@ -65,82 +65,166 @@ async function getEvent(): Promise<EventConfig | null> {
 }
 
 // ── /seed ───────────────────────────────────────────────────────
-// Idempotent: only writes default fields if missing. Run once after
-// `firebase deploy` to populate the event metadata + ICP defaults.
+// Idempotent for top-level settings (API keys, mode, accounts —
+// never clobbered). Always rewrites `event` + `icp` with the latest
+// Labrador-derived defaults so re-seeding picks up new ICP changes.
+// If you've hand-edited event/ICP in the dashboard and want to keep
+// them, edit again after seeding — or skip /seed entirely.
 export const seed = onRequest(async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
 
   const ref = db().collection("settings").doc("config");
   const existing = (await ref.get()).data() || {};
 
-  const defaults: Partial<SettingsDoc> = {
-    event: {
-      linkedinEventId: "7455003189491183616",
-      linkedinEventUrl: "https://www.linkedin.com/events/7455003189491183616/",
-      registrationUrl: "https://carahevents.carahsoft.com/Event/Details/746150-CS1?auth=4b26c6748dad45fca647aaa042775f25",
-      title: "SBOM Analysis and Protocol Fuzzing Covering the Full Attack Surface",
-      host: "Apona Security",
-      channel: "Carahsoft",
-      startsAt: "2026-05-12T14:00:00Z", // 10:00 AM ET = 14:00 UTC
-      durationMinutes: 60,
-      online: true,
-      description:
-        "Deep-dive on SBOM analysis and protocol fuzzing across the full attack surface. " +
-        "Covers practical workflows for AppSec, DevSecOps, and product security teams.",
-    },
-    icp: {
-      jobTitles: [
-        "Application Security", "AppSec", "Product Security",
-        "DevSecOps", "Security Engineer", "Security Architect",
-        "CISO", "Head of Security", "Director of Security",
-        "Vulnerability", "SBOM",
-      ],
-      industries: ["Computer Software", "Information Technology", "Defense", "Government Administration", "Financial Services"],
-      followerOf: [
-        // Company URN/slug — adjust after deploy. Common SBOM/AppSec adjacents:
-        "synopsys", "snyk", "veracode", "anchore", "blackducksoftware", "apona-security",
-      ],
-      excludeCompanies: [
-        // Hard exclusion — prospects who WORK at any of these are dropped
-        // from sourcing AND from personalize. Case-insensitive substring
-        // match against company name, headline, and current title.
-        // Mirrors followerOf because we pull followers OF competitors but
-        // never message competitors' employees. Apona is the event host
-        // (their employees already know about it).
-        "Apona Security",
-        "Synopsys", "Snyk", "Veracode", "Anchore", "Black Duck", "Blackduck",
-        "Sonatype", "Mend", "WhiteSource", "Checkmarx", "GitHub Advanced Security",
-        "Endor Labs", "Chainguard", "Phylum", "Socket", "ActiveState",
-      ],
-      linkedinGroups: [
-        // Paste full group URLs (preferred) or numeric IDs after deploy.
-        // Example: "https://www.linkedin.com/groups/3961304" (Application Security Practitioners)
-        // Add OWASP, DevSecOps, SBOM, federal-cyber groups here.
-      ],
-      targetPosts: [
-        // Paste full LinkedIn post URLs of relevant content after deploy.
-        // E.g. Apona / Carahsoft event-announcement posts, viral SBOM-related
-        // posts from analysts, vendor announcements about CISA SBOM mandates.
-      ],
-      connectionDegree: ["1st", "2nd", "3rd+"],
-      premiumOnly: false,
-      minQualityScore: 7,
-    },
-    mode: "sandbox", // flip to "live" only after key validation + dry-run review
-    autoSendQualityFloor: 7,
-    linkedinDailyLimit: 25,
-    linkedinInmailDailyLimitPerAccount: 5,
-    linkedinConnectWeeklyLimit: 90,
-    paused: false,
+  const event = {
+    linkedinEventId: "7455003189491183616",
+    linkedinEventUrl: "https://www.linkedin.com/events/7455003189491183616/",
+    registrationUrl: "https://carahevents.carahsoft.com/Event/Details/746150-CS1?auth=4b26c6748dad45fca647aaa042775f25",
+    title: "SBOM Analysis and Protocol Fuzzing Covering the Full Attack Surface",
+    host: "Apona Security",
+    channel: "Carahsoft",
+    startsAt: "2026-05-12T14:00:00Z", // 10:00 AM ET = 14:00 UTC
+    durationMinutes: 60,
+    online: true,
+    description:
+      "Deep-dive on SBOM analysis and protocol fuzzing across the full attack surface, " +
+      "hosted by Apona Security (formerly Labrador Labs / We-Fuzz). Practical workflows " +
+      "for AppSec, DevSecOps, and product security teams. Covers EU regulatory drivers " +
+      "(DORA, NIS2, CRA), source-level OSS detection that manifest scanners miss, and " +
+      "protocol fuzzing for full-attack-surface coverage.",
+    speakers: [],
   };
 
-  // Only fill missing keys; never clobber values you've already set.
-  const merged: any = { ...defaults, ...existing };
-  if (existing.event) merged.event = existing.event;
-  if (existing.icp) merged.icp = existing.icp;
+  const icp = {
+    jobTitles: [
+      // Buyer titles (Labrador's existing ICP)
+      "CISO", "Chief Information Security Officer",
+      "CTO", "Chief Technology Officer",
+      "VP Security", "VP Engineering", "VP Product Security",
+      "Director Security", "Director IT Security", "Director DevSecOps", "Director AppSec",
+      "Head of Security", "Head of IT Security", "Head of AppSec",
+      "Head of Product Security", "Head of Compliance",
+      "IT-Sicherheitsbeauftragter",            // German CISO equivalent
+      // Technical attendees relevant to SBOM/fuzzing
+      "Application Security", "AppSec", "AppSec Engineer", "AppSec Manager",
+      "Product Security", "Product Security Engineer", "Product Security Lead",
+      "DevSecOps", "DevSecOps Engineer", "DevSecOps Manager",
+      "Security Architect", "Security Engineer",
+      "Vulnerability Management", "Vulnerability Researcher",
+      "SBOM", "Software Supply Chain",
+      "Compliance Lead", "Compliance Manager",
+      "Software Engineering Manager",
+    ],
+    industries: [
+      // Software / IT
+      "Computer Software", "Information Technology and Services", "Internet",
+      // DORA — Financial services (EU, enforced)
+      "Financial Services", "Banking", "Insurance", "Capital Markets", "Investment Banking",
+      // NIS2 — Critical infrastructure / energy / health / transport (EU, active)
+      "Energy", "Utilities", "Oil & Energy", "Renewables & Environment",
+      "Telecommunications", "Wireless",
+      "Transportation/Trucking/Railroad", "Automotive", "Aviation & Aerospace",
+      "Hospital & Health Care", "Medical Devices", "Pharmaceuticals", "Biotechnology",
+      // CRA — Anyone shipping product into EU (already covered by software)
+      // ITAR — Defense
+      "Defense & Space", "Government Administration", "Military",
+      // FDA — Medical devices already in NIS2 row
+    ],
+    locations: [
+      // EU 90% of Labrador's ICP — DORA / NIS2 / CRA enforced
+      "Germany", "United Kingdom", "France", "Netherlands", "Sweden",
+      "Denmark", "Finland", "Norway", "Belgium", "Switzerland",
+      "Austria", "Ireland", "Spain", "Italy", "Poland",
+      "Czech Republic", "Portugal", "Luxembourg",
+      // US federal/defense — Carahsoft channel
+      "United States",
+    ],
+    followerOf: [
+      // Direct SCA/SBOM competitors — their followers ARE our ICP.
+      // (We pull followers; the excludeCompanies list ensures we never
+      // message anyone EMPLOYED by these competitors.)
+      "snyk", "blackducksoftware", "synopsys", "sonatype",
+      "veracode", "anchore", "mend-io", "checkmarx",
+      "endorlabs", "chainguard", "phylum-inc", "socket-dev",
+      "fossa", "jfrog", "aqua-security",
+      // Adjacent / industry follower pools
+      "owasp", "the-linux-foundation", "cisecurity",
+    ],
+    excludeCompanies: [
+      // Parent + sister brands — Apona = Labrador Labs = We-Fuzz
+      "Apona Security", "Apona.ai", "Apona", "Labrador Labs", "Labrador",
+      "We-Fuzz", "WeFuzz", "We Fuzz",
+      // Channel partner — don't pitch to Carahsoft staff
+      "Carahsoft",
+      // Direct SCA / SBOM / SAST competitors (per Labrador qualification rules)
+      "Synopsys", "Snyk", "Veracode", "Anchore",
+      "Black Duck", "Blackduck", "Black Duck Software",
+      "Sonatype", "Mend", "Mend.io", "WhiteSource",
+      "Checkmarx", "FOSSA", "GitHub Advanced Security",
+      "Endor Labs", "Chainguard", "Phylum", "Socket", "Socket.dev",
+      "ActiveState", "JFrog", "Aqua Security",
+      // Reference customers — never disrupt existing relationships
+      "Samsung", "POSCO", "LG Energy Solution",
+      "Intuitive Surgical", "KDB", "Korea Development Bank",
+      "Industrial Bank of Korea", "IBK",
+    ],
+    linkedinGroups: [
+      // Paste full LinkedIn group URLs in the dashboard. Suggestions
+      // (verify and paste in dashboard, IDs not hardcoded):
+      //   Application Security Practitioners
+      //   DevSecOps
+      //   OWASP local chapters (US, EU)
+      //   ISC2 Information Security Professionals
+      //   CRA / NIS2 / DORA discussion groups
+      //   SBOM / Supply Chain Security
+      //   Federal Cybersecurity (for Carahsoft channel)
+    ],
+    targetPosts: [
+      // Paste post URLs in the dashboard. Highest-converting:
+      //   Apona / Labrador event-announcement post for THIS event
+      //   Carahsoft event-promo posts
+      //   Recent CISA SBOM mandate posts
+      //   Viral CRA / NIS2 / DORA threads from analysts
+      //   Competitor product announcements (Snyk/BlackDuck/Sonatype)
+      //     where AppSec people pile into the comments
+    ],
+    connectionDegree: ["1st", "2nd", "3rd+"],
+    premiumOnly: false,
+    minQualityScore: 7,
+  };
 
-  await ref.set({ ...merged, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-  res.json({ ok: true, mergedKeys: Object.keys(merged) });
+  // Top-level settings: merge defaults under existing values so we
+  // never clobber API keys, mode, accounts, etc.
+  const topLevel = {
+    senderName: existing.senderName || "Roger",
+    mode: existing.mode || "sandbox",
+    anthropicModel: existing.anthropicModel || "claude-sonnet-4-6",
+    autoSendQualityFloor: existing.autoSendQualityFloor ?? 7,
+    linkedinDailyLimit: existing.linkedinDailyLimit ?? 25,
+    linkedinInmailDailyLimitPerAccount: existing.linkedinInmailDailyLimitPerAccount ?? 5,
+    linkedinConnectWeeklyLimit: existing.linkedinConnectWeeklyLimit ?? 90,
+    paused: existing.paused ?? false,
+  };
+
+  await ref.set({
+    ...topLevel,
+    event,
+    icp,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  res.json({
+    ok: true,
+    seeded: {
+      event: event.title,
+      icpJobTitles: icp.jobTitles.length,
+      icpIndustries: icp.industries.length,
+      icpLocations: icp.locations.length,
+      icpFollowerOf: icp.followerOf.length,
+      icpExcludeCompanies: icp.excludeCompanies.length,
+    },
+    note: "event + icp always overwritten by /seed. API keys, accounts, and mode preserved.",
+  });
 });
 
 // ── /testKeys ───────────────────────────────────────────────────
